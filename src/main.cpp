@@ -1,6 +1,10 @@
+#include "components.h"
+
 #include <ArduinoOTA.h>
 #include <ESP8266WiFiMulti.h>
 #include <PubSubClient.h>
+
+using namespace Components;
 
 namespace {
 
@@ -167,6 +171,10 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println("Booting");
+
+  Delayer d(5000, [&]() {}, [&]() {});
+  d.init(false);
+  d.tick(true);
 
   setupIO();
   setupWIFI();
