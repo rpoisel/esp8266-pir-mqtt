@@ -26,7 +26,7 @@ void Delayer::tick(bool curVal)
     this->curVal = curVal;
     return;
   }
-  if (now - beginInstant > period)
+  if (state && now - beginInstant > period)
   {
     state = false;
     cbEnd();

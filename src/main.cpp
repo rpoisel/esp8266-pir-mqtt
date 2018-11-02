@@ -4,16 +4,24 @@
 #include <ESP8266WiFiMulti.h>
 #include <PubSubClient.h>
 
+#include <utility>
+
 using namespace Components;
 
 namespace {
 
+// configuration
 static int const gpioPin = 14;
 static int const relayPin = 12;
 static int const ledPin = 13;
 
-static char const* mqttTopicSubscribe = "/test/sonoff/relay";
-static char const* mqttTopicPublish = "/test/sonoff/gpio";
+std::pair<char const*, char const*> wifiCredentials[] = {
+    // {"SSID", "PASSWORD"},
+};
+
+#define MQTT_TOPIC_BASE "/homeautomation/bad/"
+static char const* mqttTopicOverrule = MQTT_TOPIC_BASE "overrule";
+static char const* mqttTopicLight = MQTT_TOPIC_BASE "light";
 static char const* mqttClientId = "client-linuxmagazin";
 static char const* mqttBroker = "192.168.88.241";
 static int const mqttPort = 1883;
@@ -23,26 +31,20 @@ static char const* mqttPassword = 0;
 static uint16_t const otaPort = 8266;
 static char const* otaHostname = "esp_bad_eg";
 
-static uint8_t prevButtonVal;
 static ESP8266WiFiMulti wifiMulti;
 static WiFiClient wificlient;
 static PubSubClient client(wificlient);
+static void lightOn(void);
+static void lightOff(void);
+static void motionDetected(void);
+static void onPeriodEnded(void);
+static Delayer delayer(5000, &motionDetected, &onPeriodEnded);
+static bool overruleActive = false;
 
 static void setupIO(void);
 static void setupWIFI(void);
 static void setupOTA(void);
 static void setupMQTT(void);
-
-static inline void blinkNum(size_t num, uint8_t pin)
-{
-  for (size_t cnt = 0; cnt < num; cnt++)
-  {
-    digitalWrite(pin, LOW);
-    delay(100);
-    digitalWrite(pin, HIGH);
-    delay(100);
-  }
-}
 
 static void mqttCallback(char* topic, byte* payload, unsigned int length)
 {
@@ -60,25 +62,45 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length)
     return;
   }
 
-  switch (payload[0])
+  if (payload[0] != '0' && payload[0] != '1')
   {
-  case '1':
-    digitalWrite(ledPin, LOW); // LED is active-low, so this turns it on
-    digitalWrite(relayPin, HIGH);
-    break;
-  case '0':
-    digitalWrite(ledPin, HIGH); // LED is active-low, so this turns it off
-    digitalWrite(relayPin, LOW);
-    break;
-  default:
     Serial.print("MQTT: Unknown value");
-    break;
+    return;
+  }
+
+  if (!strcmp(topic, mqttTopicOverrule))
+  {
+    switch (payload[0])
+    {
+    case '0':
+      overruleActive = false;
+      break;
+    case '1':
+      overruleActive = true;
+      break;
+    default:
+      break;
+    }
+  }
+  else if (overruleActive && !strcmp(topic, mqttTopicLight))
+  {
+    switch (payload[0])
+    {
+    case '0':
+      lightOff();
+      break;
+    case '1':
+      lightOn();
+      break;
+    default:
+      break;
+    }
   }
 }
 
 static void mqttReconnect()
 {
-  while (!client.connected())
+  if (!client.connected())
   {
     Serial.print("Attempting MQTT connection...");
     boolean success;
@@ -93,15 +115,12 @@ static void mqttReconnect()
     if (success)
     {
       Serial.println("connected");
-      blinkNum(2, ledPin);
-      client.subscribe(mqttTopicSubscribe);
+      client.subscribe(MQTT_TOPIC_BASE "#");
     }
     else
     {
       Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      delay(5000);
     }
   }
 }
@@ -115,13 +134,17 @@ static void setupIO(void)
 
   digitalWrite(ledPin, HIGH);
   digitalWrite(relayPin, LOW);
-  prevButtonVal = digitalRead(gpioPin);
+
+  delayer.init(digitalRead(gpioPin));
 }
 
 static void setupWIFI(void)
 {
   Serial.println("Initializing WiFi credentials.");
-  // wifiMulti.addAP("SSID", "PASSWORD");
+  for (auto credentialPair : wifiCredentials)
+  {
+    wifiMulti.addAP(credentialPair.first, credentialPair.second);
+  }
 }
 
 static void setupOTA(void)
@@ -165,16 +188,50 @@ static void setupMQTT(void)
   client.setCallback(mqttCallback);
 }
 
+static void motionDetected(void)
+{
+  if (overruleActive)
+  {
+    return;
+  }
+  lightOn();
+  if (client.connected())
+  {
+    client.publish(mqttTopicLight, "1");
+  }
+}
+
+static void onPeriodEnded(void)
+{
+  if (overruleActive)
+  {
+    return;
+  }
+  lightOff();
+  if (client.connected())
+  {
+    client.publish(mqttTopicLight, "0");
+  }
+}
+
+static void lightOn(void)
+{
+  digitalWrite(ledPin, LOW); // LED is active-low, so this turns it on
+  digitalWrite(relayPin, HIGH);
+}
+
+static void lightOff(void)
+{
+  digitalWrite(ledPin, HIGH); // LED is active-low, so this turns it off
+  digitalWrite(relayPin, LOW);
+}
+
 } // namespace
 
 void setup()
 {
   Serial.begin(115200);
   Serial.println("Booting");
-
-  Delayer d(5000, [&]() {}, [&]() {});
-  d.init(false);
-  d.tick(true);
 
   setupIO();
   setupWIFI();
@@ -185,7 +242,7 @@ void setup()
 void loop()
 {
   static auto connectionConfigured = false;
-  auto curButtonVal = digitalRead(gpioPin);
+  delayer.tick(digitalRead(gpioPin));
 
   if (wifiMulti.run() == WL_CONNECTED)
   {
@@ -199,11 +256,6 @@ void loop()
     }
     if (client.connected())
     {
-      if (prevButtonVal != curButtonVal)
-      {
-        // movement has been detected
-        client.publish(mqttTopicPublish, curButtonVal == HIGH ? "0" : "1");
-      }
       client.loop();
     }
     else
@@ -217,5 +269,4 @@ void loop()
   }
 
   ArduinoOTA.handle();
-  prevButtonVal = curButtonVal;
 }

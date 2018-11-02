@@ -6,7 +6,7 @@
 
 namespace Components {
 
-typedef std::function<void()> DelayerCb;
+typedef std::function<void(void)> DelayerCb;
 
 class Delayer {
   public:
