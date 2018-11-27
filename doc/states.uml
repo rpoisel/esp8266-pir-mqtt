@@ -1,0 +1,13 @@
+@startuml
+hide empty description
+[*] --> LightOff
+
+LightOff --> LightOn : Motion
+LightOn --> LightOff : MQTT or Timeout
+LightOn --> LightOn : Motion
+
+LightOff --> LightOnOverride : MQTT
+LightOnOverride --> LightOff : MQTT
+
+@enduml
+
