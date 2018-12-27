@@ -6,12 +6,15 @@
 #include <ESP8266WiFiMulti.h>
 #include <PubSubClient.h>
 
+#include <utility>
+#include <vector>
+
 namespace Config {
 
 extern int const relayPin;
 extern int const gpioPin;
 
-extern std::pair<char const*, char const*> wifiCredentials[3];
+extern std::vector<std::pair<char const*, char const*>> const wifiCredentials;
 
 #define MQTT_TOPIC_BASE "/homeautomation/bad/light/"
 extern char const* mqttTopicLightSet;
@@ -30,7 +33,6 @@ extern char const* otaHostname;
 namespace Globals {
 
 extern ESP8266WiFiMulti wifiMulti;
-extern WiFiClient wificlient;
 extern PubSubClient client;
 extern Components::Timer motionTimer;
 extern Components::FSM fsm;

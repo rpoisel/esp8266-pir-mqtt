@@ -8,7 +8,7 @@ int const relayPin = 12;
 int const gpioPin = 14;
 int const ledPin = 13;
 
-std::pair<char const*, char const*> wifiCredentials[] = {
+std::vector<std::pair<char const*, char const*>> const wifiCredentials = {
     // {"SSID", "PASSWORD"},
 };
 

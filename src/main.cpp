@@ -5,8 +5,6 @@
 #include "ota.h"
 #include "logging.h"
 
-#include <utility>
-
 using namespace Config;
 using namespace Components;
 using namespace States;
