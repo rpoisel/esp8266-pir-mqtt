@@ -18,8 +18,8 @@ char const* mqttTopicLightState = MQTT_TOPIC_BASE "state";
 char const* mqttClientId = "client-linuxmagazin";
 char const* mqttBroker = "192.168.88.241";
 int const mqttPort = 1883;
-char const* mqttUser = 0;
-char const* mqttPassword = 0;
+char const* mqttUser = nullptr;
+char const* mqttPassword = nullptr;
 
 uint16_t const otaPort = 8266;
 char const* otaHostname = "esp_bad_eg";
